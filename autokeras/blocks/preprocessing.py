@@ -156,9 +156,10 @@ class ImageAugmentation(block_module.Block):
             represented as a single float, lower = upper.
             If left unspecified, it will be tuned automatically.
         zoom_factor: A positive float represented as fraction value, or a tuple of 2
-            representing fraction for zooming vertically and horizontally. For
-            instance, `zoom_factor=0.2` result in a random zoom factor from 80% to
-            120%. If left unspecified, it will be tuned automatically.
+            representing fraction for zooming vertically and horizontally,
+            or a kerastuner.engine.hyperparameters.Choice range of positive floats.
+            For instance, `zoom_factor=0.2` result in a random zoom factor from 80%
+            to 120%. If left unspecified, it will be tuned automatically.
         contrast_factor: A positive float represented as fraction of value, or a
             tuple of size 2 representing lower and upper bound. When represented as a
             single float, lower = upper. The contrast factor will be randomly picked
@@ -172,7 +173,9 @@ class ImageAugmentation(block_module.Block):
         vertical_flip: Optional[bool] = None,
         horizontal_flip: Optional[bool] = None,
         rotation_factor: Optional[Union[float, hyperparameters.Choice]] = None,
-        zoom_factor: Optional[Union[float, Tuple[float, float]]] = None,
+        zoom_factor: Optional[
+            Union[float, Tuple[float, float], hyperparameters.Choice]
+        ] = None,
         contrast_factor: Optional[Union[float, Tuple[float, float]]] = None,
         **kwargs
     ):
@@ -185,7 +188,11 @@ class ImageAugmentation(block_module.Block):
             hyperparameters.Choice("rotation_factor", [0.0, 0.1]),
             float,
         )
-        self.zoom_factor = zoom_factor
+        self.zoom_factor = utils.get_hyperparameter(
+            zoom_factor,
+            hyperparameters.Choice("zoom_factor", [0.0, 0.1]),
+            Union[float, Tuple[float, float]],
+        )
         self.contrast_factor = contrast_factor
 
     @staticmethod
@@ -234,9 +241,7 @@ class ImageAugmentation(block_module.Block):
             output_node = layers.RandomRotation(rotation_factor)(output_node)
 
         # Zoom
-        zoom_factor = self.zoom_factor
-        if zoom_factor is None:
-            zoom_factor = hp.Choice("zoom_factor", [0.0, 0.1])
+        zoom_factor = utils.add_to_hp(self.zoom_factor, hp)
         if zoom_factor not in [0, (0, 0)]:
             height_factor, width_factor = self._get_fraction_value(zoom_factor)
             # TODO: Add back RandomZoom when it is ready.
@@ -260,7 +265,7 @@ class ImageAugmentation(block_module.Block):
                 "horizontal_flip": self.horizontal_flip,
                 "vertical_flip": self.vertical_flip,
                 "rotation_factor": hyperparameters.serialize(self.rotation_factor),
-                "zoom_factor": self.zoom_factor,
+                "zoom_factor": hyperparameters.serialize(self.zoom_factor),
                 "contrast_factor": self.contrast_factor,
             }
         )
